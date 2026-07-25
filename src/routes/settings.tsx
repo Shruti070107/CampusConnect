@@ -16,6 +16,7 @@ import { createClient, getSupabaseUrl } from "@/lib/supabase/client";
 
 import { Progress } from "@/components/ui/progress";
 import { OptimizedImage } from "@/components/media/OptimizedImage";
+import { Switch } from "@/components/ui/switch";
 
 import type { User } from "@supabase/supabase-js";
 import { useQuery } from "@/hooks/useReactQueryReplacement";
@@ -486,7 +487,7 @@ export default function SettingsPage() {
                 {/* ── Skills Tags Editor ── */}
                 <div className="space-y-2 pt-2">
                   <p className="eyebrow font-bold text-black">Skills</p>
-                  <p className="font-mono text-xs text-gray-500 dark:text-gray-300">
+                  <p className="font-mono text-xs text-muted-foreground">
                     Add skills to power matchmaking — press Enter or click{" "}
                     <span className="font-bold">+</span> to add.
                   </p>
@@ -566,7 +567,7 @@ export default function SettingsPage() {
                       Dark Mode
                     </label>
 
-                    <p className="font-mono text-xs text-gray-500 dark:text-gray-300">
+                    <p className="font-mono text-xs text-muted-foreground">
                       Toggle between light and dark theme
                     </p>
                   </div>
@@ -588,7 +589,7 @@ export default function SettingsPage() {
                   className="w-full cursor-pointer accent-black"
                 />
 
-                <p className="font-mono text-xs text-gray-500 dark:text-gray-300">
+                <p className="font-mono text-xs text-muted-foreground">
                   Controls the width of borders throughout the app (1px - 8px)
                 </p>
               </div>
@@ -606,7 +607,7 @@ export default function SettingsPage() {
                   className="w-full cursor-pointer accent-black"
                 />
 
-                <p className="font-mono text-xs text-gray-500 dark:text-gray-300">
+                <p className="font-mono text-xs text-muted-foreground">
                   Controls the roundness of corners (0px - 32px)
                 </p>
               </div>
@@ -746,7 +747,7 @@ function AvatarThemePicker({
   return (
     <div className="space-y-2 border-b-2 border-black pb-6">
       <p className="eyebrow font-bold">Avatar theme</p>
-      <p className="font-mono text-xs text-gray-500 dark:text-gray-300">
+      <p className="font-mono text-xs text-muted-foreground">
         Pick a gradient background to use when you don&apos;t have a custom photo.
       </p>
       <div className="flex flex-wrap gap-3 pt-1">
@@ -1044,7 +1045,7 @@ function AvatarUpload({ name, avatarTheme }: { name: string; avatarTheme?: Avata
                 ? "Drop to upload"
                 : "Drag & drop or click to upload"}
           </p>
-          <p className="font-mono text-[10px] text-gray-500 dark:text-gray-400">
+          <p className="font-mono text-[10px] text-muted-foreground">
             JPG, PNG or WEBP · Max 2 MB · Square images look best
           </p>
           <input
@@ -1088,28 +1089,21 @@ function ThemeToggle({
   theme: "light" | "dark" | "system";
   setTheme: (theme: "light" | "dark" | "system") => void;
 }) {
-  const isDark = theme === "dark";
+  const isDark =
+    theme === "dark" ||
+    (theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
 
-  const handleToggle = () => {
-    setTheme(isDark ? "light" : "dark");
+  const handleToggle = (checked: boolean) => {
+    setTheme(checked ? "dark" : "light");
   };
 
   return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={isDark}
-      onClick={handleToggle}
-      className={`relative flex h-7 w-14 items-center rounded-full border-2 border-black transition-colors ${
-        isDark ? "bg-black" : "bg-gray-200"
-      }`}
-    >
-      <span
-        className={`h-5 w-5 rounded-full border-2 border-black bg-white transition-transform ${
-          isDark ? "translate-x-7" : "translate-x-1"
-        }`}
-      />
-    </button>
+    <Switch
+      checked={isDark}
+      onCheckedChange={handleToggle}
+      aria-label="Toggle dark mode"
+      className="data-[state=checked]:bg-black data-[state=unchecked]:bg-gray-200 h-7 w-14 [&>span]:h-5 [&>span]:w-5 data-[state=checked]:[&>span]:translate-x-7 data-[state=unchecked]:[&>span]:translate-x-1 border-2 border-black"
+    />
   );
 }
 

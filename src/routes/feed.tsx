@@ -79,7 +79,9 @@ interface Comment {
   content: string;
   created_at: string;
   deleted_at: string | null;
+  parent_id?: string | null;
   parent_comment_id?: string | null;
+  depth?: number;
   profiles: Profile[] | Profile | null;
 }
 
@@ -101,7 +103,7 @@ interface Post {
   image_url?: string;
 }
 
-const POSTS_PER_PAGE = 10;
+const POSTS_PER_PAGE = 20;
 const COMMENTS_PAGE_SIZE = 5;
 
 export default function Feed() {
@@ -196,7 +198,7 @@ export default function Feed() {
         id, content, created_at, club_id, is_pinned,
         profiles (id, full_name, handle),
         clubs (id, name, club_members (user_id, role)),
-        comments (id, content, created_at, deleted_at, parent_comment_id, profiles (id, full_name, handle)),
+        comments (id, content, created_at, deleted_at, parent_id, parent_comment_id, profiles (id, full_name, handle)),
         post_reactions (emoji, user_id)
       `,
         )
@@ -231,7 +233,7 @@ export default function Feed() {
           id, content, created_at, club_id, is_pinned,
           profiles (id, full_name, handle),
           clubs (id, name, club_members (user_id, role)),
-          comments (id, content, created_at, deleted_at, parent_comment_id, profiles (id, full_name, handle)),
+          comments (id, content, created_at, deleted_at, parent_id, parent_comment_id, profiles (id, full_name, handle)),
           post_reactions (emoji, user_id)
         `,
         )
@@ -279,25 +281,6 @@ export default function Feed() {
     setShowNewPostsBanner(false);
     refetchPosts();
   }, [refetchPosts]);
-
-  const observer = useRef<IntersectionObserver | null>(null);
-  const lastPostElementRef = useCallback(
-    (node: HTMLElement | null) => {
-      if (isLoading || isFetchingNextPage) return;
-      if (observer.current) observer.current.disconnect();
-      observer.current = new IntersectionObserver((entries) => {
-        if (entries[0].isIntersecting && hasNextPage) {
-          fetchNextPage();
-        }
-      });
-      if (node) observer.current.observe(node);
-    },
-    [isLoading, isFetchingNextPage, fetchNextPage, hasNextPage],
-  );
-
-  useEffect(() => {
-    return () => observer.current?.disconnect();
-  }, []);
 
   useEffect(() => {
     const channel = supabase
@@ -448,6 +431,7 @@ export default function Feed() {
         post_id: postId,
         author_id: user.id,
         content,
+        parent_id: parentCommentId || null,
         parent_comment_id: parentCommentId || null,
       });
       if (error) throw error;
@@ -852,8 +836,7 @@ export default function Feed() {
               </div>
             ) : (
               <>
-                {filteredPosts.map((post: Post, index: number) => {
-                  const isLastPost = feedMode === "latest" && index === filteredPosts.length - 1;
+                {filteredPosts.map((post: Post) => {
                   const author = Array.isArray(post.profiles) ? post.profiles[0] : post.profiles;
                   const club = Array.isArray(post.clubs) ? post.clubs[0] : post.clubs;
                   const clubMembers: ClubMember[] = Array.isArray(club?.club_members)
@@ -878,7 +861,6 @@ export default function Feed() {
                     <article
                       id={`post-${post.id}`}
                       key={post.id}
-                      ref={isLastPost ? lastPostElementRef : undefined}
                       className={`neu-border p-6 ${
                         post.is_pinned ? "bg-[#FFFBEA] border-[3px] border-[#F59E0B]" : "bg-white"
                       }`}
@@ -1098,8 +1080,9 @@ export default function Feed() {
                               commentsList.forEach((c) => map.set(c.id, { ...c, children: [] }));
                               const roots: CommentNode[] = [];
                               commentsList.forEach((c) => {
-                                if (c.parent_comment_id && map.has(c.parent_comment_id)) {
-                                  map.get(c.parent_comment_id)!.children.push(map.get(c.id)!);
+                                const parentId = c.parent_id || c.parent_comment_id;
+                                if (parentId && map.has(parentId)) {
+                                  map.get(parentId)!.children.push(map.get(c.id)!);
                                 } else {
                                   roots.push(map.get(c.id)!);
                                 }
@@ -1340,6 +1323,17 @@ export default function Feed() {
                   );
                 })}
               </>
+            )}
+
+            {hasNextPage && feedMode === "latest" && (
+              <button
+                type="button"
+                onClick={() => fetchNextPage()}
+                disabled={isFetchingNextPage}
+                className="neu-border neu-press w-full bg-white hover:bg-cream py-4 text-center font-mono text-sm font-bold uppercase transition-all shadow-[4px_4px_0_0_#000] hover:translate-x-[-2px] hover:translate-y-[-2px] hover:shadow-[6px_6px_0_0_#000] active:translate-x-[0px] active:translate-y-[0px] active:shadow-[4px_4px_0_0_#000] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isFetchingNextPage ? "Loading more..." : "Load More Posts"}
+              </button>
             )}
 
             {isFetchingNextPage &&
