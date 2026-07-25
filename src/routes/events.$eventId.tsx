@@ -7,6 +7,7 @@ import { useEmailVerification } from "@/hooks/useEmailVerification";
 import { SiteShell } from "@/components/site/SiteShell";
 import { SkeletonEventDetails } from "@/components/events/SkeletonEventDetails";
 import { formatEventDateRange, getGoogleCalendarUrl } from "@/lib/utils";
+import { formatStandardDate } from "@/utils/dateUtils";
 import { toast } from "sonner";
 import { ShareMenu } from "@/components/ui/ShareMenu";
 import {
@@ -40,7 +41,9 @@ import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { OptimizedImage } from "@/components/media/OptimizedImage";
 import { parseCoordinates } from "@/lib/eventUtils";
 import { EventFeedbackForm } from "@/components/EventFeedbackForm";
+import { EventPhotoGallery } from "@/components/EventPhotoGallery";
 import { EventMap } from "@/components/EventMap";
+import { PredictiveTurnout } from "@/components/events/PredictiveTurnout";
 import {
   Accordion,
   AccordionContent,
@@ -57,6 +60,100 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 
+interface SimilarEventItem {
+  id: string;
+  title: string;
+  category_id?: string;
+  event_date?: string;
+  banner_url?: string;
+  description?: string;
+}
+
+function SimilarEvents({
+  currentEventId,
+  categoryId,
+}: {
+  currentEventId: string;
+  categoryId?: string;
+}) {
+  const supabase = createClient();
+  const [similarEvents, setSimilarEvents] = useState<SimilarEventItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!categoryId) {
+      setLoading(false);
+      return;
+    }
+
+    async function fetchSimilarEvents() {
+      setLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from("events")
+          .select("id, title, category_id, event_date, banner_url, description")
+          .eq("category_id", categoryId)
+          .neq("id", currentEventId)
+          .limit(3);
+
+        if (error) {
+          console.error("Error fetching similar events:", error);
+        } else if (data) {
+          setSimilarEvents(data as SimilarEventItem[]);
+        }
+      } catch (err) {
+        console.error("Unexpected error fetching similar events:", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchSimilarEvents();
+  }, [currentEventId, categoryId, supabase]);
+
+  if (loading || similarEvents.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="mt-10 border-t-2 border-black pt-8">
+      <h2 className="font-display text-xl font-bold uppercase tracking-tight text-blue-900 mb-6">
+        Similar Events You Might Like
+      </h2>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {similarEvents.map((evt) => (
+          <Link
+            key={evt.id}
+            to={`/events/${evt.id}`}
+            className="neu-border group block bg-white p-4 hover:translate-x-0.5 hover:-translate-y-0.5 transition-transform"
+          >
+            {evt.banner_url ? (
+              <img
+                src={evt.banner_url}
+                alt={evt.title}
+                className="w-full h-32 object-cover border-2 border-black mb-3"
+              />
+            ) : (
+              <div className="w-full h-32 bg-peach/30 border-2 border-black mb-3 flex items-center justify-center font-mono text-xs font-bold text-black/50">
+                NO IMAGE
+              </div>
+            )}
+            <h3 className="font-mono text-sm font-bold uppercase line-clamp-1 group-hover:underline">
+              {evt.title}
+            </h3>
+            {evt.event_date && (
+              <p className="font-mono text-xs text-black/60 mt-1">
+                📅 {formatStandardDate(evt.event_date)}
+                📅 {new Date(evt.event_date).toLocaleDateString()}
+              </p>
+            )}
+          </Link>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function rsvpRowsToCsv(rows: { name: string; email: string; rsvp_date: string; status: string }[]) {
   const headers = ["User Name", "Email", "RSVP Date", "Status"];
   const escape = (val: string) => {
@@ -65,7 +162,7 @@ function rsvpRowsToCsv(rows: { name: string; email: string; rsvp_date: string; s
   };
   const lines = [headers.join(",")];
   for (const r of rows) {
-    lines.push([r.name, r.email, r.rsvp_date, r.status].map(escape).join(","));
+    lines.push([r.name, r.email, formatStandardDate(r.rsvp_date), r.status].map(escape).join(","));
   }
   return lines.join("\n");
 }
@@ -255,8 +352,9 @@ export default function EventDetailsPage() {
         .from("events")
         .select(
           `
-          id, title, description, event_date, start_date, end_date, location, banner_url, created_by, max_attendees, faqs,
+          id, title, description, category_id, event_date, start_date, end_date, location, latitude, longitude, banner_url, created_by, max_attendees, faqs,
           clubs (name, slug),
+          profiles (full_name, email),
           event_rsvps (id, user_id, checked_in),
           event_waitlist (id, user_id, created_at),
           event_feedbacks (id, user_id)
@@ -270,6 +368,7 @@ export default function EventDetailsPage() {
         if (import.meta.env.DEV && eventId.startsWith("mock-")) {
           return {
             id: eventId,
+            category_id: "cat-1",
             created_by: "mock-user-1",
             title:
               eventId === "mock-1"
@@ -296,6 +395,8 @@ export default function EventDetailsPage() {
                   : "Student Activity Centre, IIT Bombay, Powai, Mumbai",
             banner_url: null as string | null,
             max_attendees: eventId === "mock-1" ? 1 : null,
+            latitude: eventId === "mock-1" ? 30.3564 : eventId === "mock-2" ? 28.5355 : 19.076,
+            longitude: eventId === "mock-1" ? 76.3647 : eventId === "mock-2" ? 77.209 : 72.8777,
             clubs: [
               {
                 name:
@@ -318,6 +419,7 @@ export default function EventDetailsPage() {
             event_feedbacks: [] as { id: string; user_id: string }[],
             faqs: [] as { question: string; answer: string }[],
             attendee_count: eventId === "mock-1" ? 1 : 0,
+            profiles: { full_name: "Mock Organizer", email: "mock@example.com" },
           };
         }
         throw error;
@@ -378,8 +480,18 @@ export default function EventDetailsPage() {
     onSuccess: () => {
       refetch();
     },
-    onError: (error: Error) => {
-      toast.error(error.message || "Failed to update RSVP. Please try again.");
+    onError: (error: (Error & { details?: string; context?: string }) | unknown) => {
+      const err = error as Record<string, unknown>;
+      if (
+        (typeof err?.message === "string" && err.message.includes("Rate limit")) ||
+        (typeof err?.details === "string" && err.details.includes("Rate limit")) ||
+        (typeof err?.context === "string" && err.context.includes("Rate limit")) ||
+        (typeof error === "string" && error.includes("Rate limit"))
+      ) {
+        toast.error("Please wait a minute before toggling RSVP again.");
+      } else {
+        toast.error((err?.message as string) || "Failed to update RSVP. Please try again.");
+      }
     },
   });
 
@@ -468,7 +580,7 @@ export default function EventDetailsPage() {
   }
 
   const rsvps = Array.isArray(event.event_rsvps) ? event.event_rsvps : [];
-  const hasRsvpd = user ? rsvps.some((r) => r.user_id === user.id) : false;
+  const hasRsvpd = user ? rsvps.some((r: { user_id: string }) => r.user_id === user.id) : false;
   const isCheckedIn = user
     ? rsvps.some(
         (r: { user_id: string; checked_in?: boolean }) => r.user_id === user.id && r.checked_in,
@@ -477,7 +589,9 @@ export default function EventDetailsPage() {
   const hasEnded = event.end_date ? new Date() > new Date(event.end_date) : false;
   const rawFeedbacks = (event as Record<string, unknown>).event_feedbacks;
   const hasSubmittedFeedback =
-    user && Array.isArray(rawFeedbacks) ? rawFeedbacks.some((f) => f.user_id === user.id) : false;
+    user && Array.isArray(rawFeedbacks)
+      ? (rawFeedbacks as { user_id: string }[]).some((f) => f.user_id === user.id)
+      : false;
 
   const rawWaitlist = (event as Record<string, unknown>).event_waitlist;
   const waitlist = Array.isArray(rawWaitlist)
@@ -663,6 +777,27 @@ export default function EventDetailsPage() {
                 {club.name}
               </Link>
             </p>
+          )}
+
+          {!club && event.profiles && (
+            <div
+              className={`mt-4 font-mono text-base font-bold ${event.banner_url ? "text-white/90" : "text-black/80"} flex items-center gap-4`}
+            >
+              <span>Organized by: {(event.profiles as { full_name: string }).full_name}</span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  import("@/lib/vcardUtils").then(({ downloadVCard }) => {
+                    downloadVCard(event.profiles as { full_name: string; email: string });
+                  });
+                }}
+                className="neu-border h-8 bg-white/20 hover:bg-white/40 text-xs px-3"
+              >
+                <Download className="mr-2 h-3 w-3" />
+                Download Contact (vCard)
+              </Button>
+            </div>
           )}
 
           <div
@@ -873,6 +1008,19 @@ export default function EventDetailsPage() {
             )}
           </div>
 
+          {/* Predictive Turnout (Visible to Organizer / Admins) */}
+          {isOrganizer && (
+            <div className="mt-8">
+              <PredictiveTurnout
+                rsvpCount={attendeeCount}
+                latitude={(event as Record<string, unknown>).latitude as number | null}
+                longitude={(event as Record<string, unknown>).longitude as number | null}
+                location={event.location || ""}
+                clubName={club?.name || ""}
+              />
+            </div>
+          )}
+
           {/* Description */}
           <div className="mt-8">
             <h2 className="font-display text-xl font-bold uppercase tracking-tight text-blue-900">
@@ -986,7 +1134,7 @@ export default function EventDetailsPage() {
             </div>
           )}
 
-          {/* Event Feedback Form (Only if ended and user RSVP'd) */}
+          {/* Event Feedback (Only if ended and user RSVP'd) */}
           {user &&
             hasRsvpd &&
             event.end_date &&
