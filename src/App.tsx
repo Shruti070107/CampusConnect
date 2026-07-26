@@ -35,6 +35,7 @@ import Settings from "./routes/settings";
 import VerifyEmail from "./routes/verify-email";
 import PendingClubsAdmin from "./routes/admin.clubs.pending";
 import AdminReportsPage from "./routes/admin.reports";
+import AdminUsersPage from "./routes/admin.users";
 import { NotFoundPage } from "./components/NotFoundPage";
 
 // ---------------------------------------------------------------------------
@@ -161,6 +162,7 @@ const router = createBrowserRouter(
         <Route path="/settings" element={<Settings />} />
         <Route path="/admin/clubs/pending" element={<PendingClubsAdmin />} />
         <Route path="/admin/reports" element={<AdminReportsPage />} />
+        <Route path="/admin/users" element={<AdminUsersPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Route>
     </Route>,
