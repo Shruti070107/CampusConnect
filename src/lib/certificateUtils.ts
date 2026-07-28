@@ -2,8 +2,6 @@
  * Certificate Download & Document Stream Utilities
  */
 
-import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
-
 export interface DownloadCertOptions {
   certificateUrl?: string;
   eventTitle?: string;
@@ -33,29 +31,45 @@ export async function generateFallbackCertificatePdf(options: {
   issuedAt?: string | null;
   certId: string;
 }): Promise<Blob> {
+  const { PDFDocument, rgb, StandardFonts } = await import("pdf-lib");
   const pdfDoc = await PDFDocument.create();
   const page = pdfDoc.addPage([600, 400]);
 
   const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
   const fontNormal = await pdfDoc.embedFont(StandardFonts.Helvetica);
 
-  page.drawText("Certificate of Attendance", {
-    x: 120,
-    y: 320,
-    size: 26,
-    font: fontBold,
-    color: rgb(0, 0, 0),
-  });
+  type PDFFontType = typeof fontBold;
 
-  page.drawText("This certifies that", { x: 230, y: 270, size: 14, font: fontNormal });
+  const drawCenteredScaledText = (
+    text: string,
+    y: number,
+    font: PDFFontType,
+    defaultSize: number,
+    color = rgb(0, 0, 0),
+  ) => {
+    const maxWidth = 500;
+    let size = defaultSize;
+    let textWidth = font.widthOfTextAtSize(text, size);
+
+    if (textWidth > maxWidth) {
+      size = Math.max(10, (maxWidth / textWidth) * size);
+      textWidth = font.widthOfTextAtSize(text, size);
+    }
+
+    const x = (page.getWidth() - textWidth) / 2;
+    page.drawText(text, { x, y, size, font, color });
+  };
+
+  drawCenteredScaledText("Certificate of Attendance", 320, fontBold, 26, rgb(0, 0, 0));
+  drawCenteredScaledText("This certifies that", 270, fontNormal, 14);
 
   const nameText = options.studentName || "Distinguished Student";
-  page.drawText(nameText, { x: 180, y: 230, size: 22, font: fontBold });
+  drawCenteredScaledText(nameText, 230, fontBold, 22);
 
-  page.drawText("has successfully participated in", { x: 190, y: 190, size: 14, font: fontNormal });
+  drawCenteredScaledText("has successfully participated in", 190, fontNormal, 14);
 
   const titleText = options.eventTitle || "CampusConnect Event";
-  page.drawText(titleText, { x: 150, y: 150, size: 18, font: fontBold });
+  drawCenteredScaledText(titleText, 150, fontBold, 18);
 
   const dateStr = options.issuedAt
     ? new Date(options.issuedAt).toLocaleDateString()
