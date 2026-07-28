@@ -33,8 +33,8 @@ import ForgotPassword from "./routes/forgot-password";
 import ResetPassword from "./routes/reset-password";
 import Settings from "./routes/settings";
 import VerifyEmail from "./routes/verify-email";
-import PendingClubsAdmin from "./routes/admin.clubs.pending";
-import AdminReportsPage from "./routes/admin.reports";
+const PendingClubsAdmin = lazy(() => import("./routes/admin.clubs.pending"));
+const AdminReportsPage = lazy(() => import("./routes/admin.reports"));
 import { NotFoundPage } from "./components/NotFoundPage";
 
 // ---------------------------------------------------------------------------
@@ -159,8 +159,22 @@ const router = createBrowserRouter(
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/verify-email" element={<VerifyEmail />} />
         <Route path="/settings" element={<Settings />} />
-        <Route path="/admin/clubs/pending" element={<PendingClubsAdmin />} />
-        <Route path="/admin/reports" element={<AdminReportsPage />} />
+        <Route
+          path="/admin/clubs/pending"
+          element={
+            <Suspense fallback={<div className="h-64 bg-cream animate-pulse" />}>
+              <PendingClubsAdmin />
+            </Suspense>
+          }
+        />
+        <Route
+          path="/admin/reports"
+          element={
+            <Suspense fallback={<div className="h-64 bg-cream animate-pulse" />}>
+              <AdminReportsPage />
+            </Suspense>
+          }
+        />
         <Route path="*" element={<NotFoundPage />} />
       </Route>
     </Route>,
