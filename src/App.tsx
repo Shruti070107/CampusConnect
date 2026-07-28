@@ -1,4 +1,5 @@
-import { Suspense, lazy } from "react";
+import { Suspense, lazy, useEffect, useState } from "react";
+
 import { AnimatePresence } from "framer-motion";
 import {
   createBrowserRouter,
@@ -9,10 +10,11 @@ import {
   Outlet,
 } from "react-router-dom";
 
-// Layout & Components
+// Layout & Core Components (Loaded eagerly)
 import Layout from "./components/Layout";
 import { ErrorBoundary, RouteErrorBoundary } from "./components/ErrorBoundary";
 import { PageWrapper } from "./components/PageWrapper";
+import ThemeToggle from "./components/ThemeToggle"; // <-- Added Import
 
 // Pages
 import Index from "./routes/index";
@@ -36,64 +38,83 @@ import VerifyEmail from "./routes/verify-email";
 const PendingClubsAdmin = lazy(() => import("./routes/admin.clubs.pending"));
 const AdminReportsPage = lazy(() => import("./routes/admin.reports"));
 import { NotFoundPage } from "./components/NotFoundPage";
+import { createClient } from "./lib/supabase/client";
 
-// ---------------------------------------------------------------------------
-// Micro-frontend: Events remote (loaded dynamically from Module Federation)
-// Falls back to local static imports when the remote is unavailable.
-// ---------------------------------------------------------------------------
+const HEALTH_CHECK_URL =
+  (typeof import.meta !== "undefined" && import.meta.env?.VITE_API_HEALTH_URL) ||
+  (typeof process !== "undefined" && process.env?.REACT_APP_API_HEALTH_URL) ||
+  "/api/health";
 
-type EventsModule = {
-  EventsPage: React.ComponentType;
-  EventDetailsPage: React.ComponentType;
-};
+const HEALTH_CHECK_TIMEOUT = 8000; // 8 seconds
 
-let eventsModulePromise: Promise<EventsModule> | null = null;
-
-async function loadEventsRemote(): Promise<EventsModule> {
-  if (!eventsModulePromise) {
-    eventsModulePromise = (async () => {
-      try {
-        const mod = await import("eventsApp/remoteEntry");
-        return {
-          EventsPage: mod.EventsPage,
-          EventDetailsPage: mod.EventDetailsPage,
-        };
-      } catch (err) {
-        console.warn("[Host] Events remote unavailable, falling back to local modules:", err);
-        const [eventsMod, eventDetailsMod] = await Promise.all([
-          import("./routes/events"),
-          import("./routes/events.$eventId"),
-        ]);
-        return {
-          EventsPage: eventsMod.default,
-          EventDetailsPage: eventDetailsMod.default,
-        };
-      }
-    })();
-  }
-  return eventsModulePromise;
+interface HealthStatus {
+  ok: boolean;
+  error?: string;
 }
 
-const LazyEventsIndex = lazy(() => loadEventsRemote().then((m) => ({ default: m.EventsPage })));
-const LazyEventDetails = lazy(() =>
-  loadEventsRemote().then((m) => ({ default: m.EventDetailsPage })),
+async function checkDatabaseHealth(): Promise<HealthStatus> {
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), HEALTH_CHECK_TIMEOUT);
+
+    const response = await fetch(HEALTH_CHECK_URL, {
+      method: "GET",
+      headers: { Accept: "application/json" },
+      signal: controller.signal,
+      cache: "no-store",
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      return {
+        ok: false,
+        error: `Server responded with status ${response.status} (${response.statusText})`,
+      };
+    }
+
+    return { ok: true };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { ok: false, error: message };
+  }
+}
+
+// Lazy-loaded Routes / Pages
+const Index = lazy(() => import("./routes/index"));
+const Auth = lazy(() => import("./routes/auth"));
+const Certificates = lazy(() => import("./routes/certificates"));
+const ClubsIndex = lazy(() => import("./routes/clubs.index"));
+const ClubDetails = lazy(() => import("./routes/clubs.$slug"));
+const ClubManageRoute = lazy(() => import("./routes/clubs.$slug.manage"));
+const ClubsLayout = lazy(() => import("./routes/clubs"));
+const Dashboard = lazy(() => import("./routes/dashboard"));
+const DashboardOverview = lazy(() => import("./routes/dashboard.index"));
+const DashboardRsvps = lazy(() => import("./routes/dashboard.rsvps"));
+const DashboardBookmarks = lazy(() => import("./routes/dashboard.bookmarks"));
+const DashboardCalendar = lazy(() => import("./routes/dashboard.calendar"));
+const Feed = lazy(() => import("./routes/feed"));
+const EventsMapPage = lazy(() => import("./routes/events.map"));
+const ForgotPassword = lazy(() => import("./routes/forgot-password"));
+const ResetPassword = lazy(() => import("./routes/reset-password"));
+const Settings = lazy(() => import("./routes/settings"));
+const VerifyEmail = lazy(() => import("./routes/verify-email"));
+const MessagesRoute = lazy(() => import("./routes/messages"));
+const PendingClubsAdmin = lazy(() => import("./routes/admin.clubs.pending"));
+const AdminReportsPage = lazy(() => import("./routes/admin.reports"));
+const ChallengeArena = lazy(() => import("./routes/challenge"));
+const EventDashboard = lazy(() => import("./routes/events.$eventId.dashboard"));
+const Leaderboard = lazy(() =>
+  import("./components/Leaderboard").then((m) => ({ default: m.Leaderboard })),
 );
 
-function RemoteLoadingScreen() {
+const LazyEventsIndex = lazy(() => import("./routes/events"));
+const LazyEventDetails = lazy(() => import("./routes/events.$eventId"));
+
+function PageFallback() {
   return (
-    <div
-      style={{
-        minHeight: "40vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        fontFamily: "Inter, system-ui, sans-serif",
-        fontWeight: 800,
-        fontSize: "1rem",
-        color: "#555",
-      }}
-    >
-      Loading Events…
+    <div className="flex h-[50vh] w-full items-center justify-center p-8">
+      <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
     </div>
   );
 }
@@ -107,7 +128,9 @@ function AnimatedOutlet() {
   return (
     <AnimatePresence mode="wait">
       <PageWrapper key={location.pathname}>
-        <Outlet />
+        <Suspense fallback={<PageFallback />}>
+          <Outlet />
+        </Suspense>
       </PageWrapper>
     </AnimatePresence>
   );
@@ -134,25 +157,13 @@ const router = createBrowserRouter(
           <Route path="calendar" element={<DashboardCalendar />} />
         </Route>
 
-        {/* Events — loaded from remote micro-frontend when available */}
-        <Route
-          path="/events"
-          element={
-            <Suspense fallback={<RemoteLoadingScreen />}>
-              <LazyEventsIndex />
-            </Suspense>
-          }
-        />
-        <Route
-          path="/events/:eventId"
-          element={
-            <Suspense fallback={<RemoteLoadingScreen />}>
-              <LazyEventDetails />
-            </Suspense>
-          }
-        />
+        <Route path="/events" element={<LazyEventsIndex />} />
+        <Route path="/events/:eventId" element={<LazyEventDetails />} />
+        <Route path="/events/:eventId/dashboard" element={<EventDashboard />} />
         {/* Events Map View with clustering */}
         <Route path="/events/map" element={<EventsMapPage />} />
+        <Route path="/challenge" element={<ChallengeArena />} />
+        <Route path="/leaderboard" element={<Leaderboard />} />
 
         <Route path="/feed" element={<Feed />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
@@ -181,10 +192,74 @@ const router = createBrowserRouter(
   ),
 );
 
+const DB_HEALTH_CHECK_TIMEOUT_MS = 8000;
+const DB_RETRY_INTERVAL_MS = 15000;
+
+type DbStatus = "checking" | "online" | "offline";
+
+async function checkDatabaseConnection(): Promise<boolean> {
+  try {
+    const supabase = createClient();
+
+    const healthCheck = supabase.from("profiles").select("id", { count: "exact", head: true });
+
+    const timeout = new Promise<never>((_, reject) =>
+      setTimeout(
+        () => reject(new Error("Database health check timed out")),
+        DB_HEALTH_CHECK_TIMEOUT_MS,
+      ),
+    );
+
+    type HealthCheckResult = Awaited<typeof healthCheck>;
+    const { error } = (await Promise.race([healthCheck, timeout])) as HealthCheckResult;
+
+    if (error) {
+      console.error("Database health check returned an error:", error.message);
+      return false;
+    }
+
+    return true;
+  } catch (err) {
+    console.error("Database client threw while checking connection:", err);
+    return false;
+  }
+}
+
 export default function App() {
+  const [dbStatus, setDbStatus] = useState<DbStatus>("checking");
+
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>;
+
+    const verify = async () => {
+      const isOnline = await checkDatabaseConnection();
+      setDbStatus(isOnline ? "online" : "offline");
+      if (!isOnline) {
+        timer = setTimeout(verify, DB_RETRY_INTERVAL_MS);
+      }
+    };
+
+    verify();
+
+    return () => clearTimeout(timer);
+  }, []);
+
+  if (dbStatus === "offline") {
+    // Assuming MaintenancePage is imported somewhere else in your environment
+    return <MaintenancePage />;
+  }
+
   return (
-    <ErrorBoundary>
-      <RouterProvider router={router} />
-    </ErrorBoundary>
+    // Assuming QueryClientProvider and queryClient are injected/imported properly
+    <QueryClientProvider client={queryClient}>
+      <ErrorBoundary>
+        {/* Floating Dark Mode Toggle */}
+        <div className="fixed bottom-4 right-4 z-[9999]">
+          <ThemeToggle />
+        </div>
+        
+        <RouterProvider router={router} />
+      </ErrorBoundary>
+    </QueryClientProvider>
   );
 }
