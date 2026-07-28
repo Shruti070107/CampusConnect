@@ -4,6 +4,7 @@ import type { User } from "@supabase/supabase-js";
 import { useEmailVerification } from "@/hooks/useEmailVerification";
 import { Footer } from "./Footer";
 import { Navbar } from "./Navbar";
+import { BugReportWidget } from "@/components/BugReportWidget";
 
 export function SiteShell({ children }: { children: ReactNode }) {
   const [supabase] = useState(() => createClient());
@@ -42,6 +43,7 @@ export function SiteShell({ children }: { children: ReactNode }) {
         {children}
       </main>
       <Footer />
+      <BugReportWidget />
     </div>
   );
 }
