@@ -17,6 +17,9 @@ import {
   DollarSign,
 } from "lucide-react";
 import { PromoVideoUploader } from "@/components/PromoVideoUploader";
+import { FolderTree } from "@/components/club-documents/FolderTree";
+import { DocumentUploader } from "@/components/club-documents/DocumentUploader";
+import { useClubDocuments } from "@/hooks/useClubDocuments";
 import { ClubManageSkeleton } from "@/components/DashboardWidgetSkeleton";
 import { RosterExport } from "@/components/RosterExport";
 import { ImageCropUpload } from "@/components/ImageCropUpload";
@@ -123,6 +126,19 @@ export default function ClubManageRoute() {
       setPromoVideoUrl(club.promo_video_url || "");
     }
   }, [club]);
+
+  const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
+  const {
+    tree,
+    isLoading: isDocsLoading,
+    createFolder,
+    renameFolder,
+    deleteFolder,
+    moveFolder,
+    uploadDocument,
+    deleteDocument,
+  } = useClubDocuments(club?.id);
+  const isAdmin = true; // route is admin-only
 
   const getDifferences = () => {
     if (!serverClub) return [];
