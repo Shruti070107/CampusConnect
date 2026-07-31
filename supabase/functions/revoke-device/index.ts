@@ -1,7 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { verifyAuth } from "../shared/auth-middleware.ts";
-import { getSessionIdFromToken } from "../shared/session-token.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.42.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -19,11 +17,10 @@ serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    let user;
-    try {
-      user = await verifyAuth(req, supabase);
-    } catch {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+    const authHeader = req.headers.get("Authorization");
+
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: "Missing Authorization header" }), {
         status: 401,
         headers: {
           ...corsHeaders,
@@ -32,10 +29,22 @@ serve(async (req) => {
       });
     }
 
-    // Prevent a user from revoking the very session they are using right now.
-    const authHeader = req.headers.get("Authorization") ?? "";
     const token = authHeader.replace("Bearer ", "");
-    const currentSessionId = getSessionIdFromToken(token);
+
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser(token);
+
+    if (userError || !user) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "application/json",
+        },
+      });
+    }
 
     const { deviceId } = await req.json();
 
@@ -49,14 +58,14 @@ serve(async (req) => {
       });
     }
 
-    const { data: session, error: fetchError } = await supabase
-      .from("device_sessions")
-      .select("id, auth_session_id")
+    const { data: device, error: fetchError } = await supabase
+      .from("user_devices")
+      .select("id")
       .eq("id", deviceId)
       .eq("user_id", user.id)
       .single();
 
-    if (fetchError || !session) {
+    if (fetchError || !device) {
       return new Response(JSON.stringify({ error: "Device not found" }), {
         status: 404,
         headers: {
@@ -66,30 +75,8 @@ serve(async (req) => {
       });
     }
 
-    if (currentSessionId !== null && session.auth_session_id === currentSessionId) {
-      return new Response(JSON.stringify({ error: "Cannot revoke the current device session." }), {
-        status: 400,
-        headers: {
-          ...corsHeaders,
-          "Content-Type": "application/json",
-        },
-      });
-    }
-
-    // 1. Invalidate the underlying Supabase auth session. Deleting the
-    //    auth.sessions / auth.refresh_tokens rows kills the device's
-    //    refresh token, so the next token refresh is rejected.
-    const { error: revokeError } = await supabase.rpc("revoke_auth_session", {
-      p_auth_session_id: session.auth_session_id,
-    });
-
-    if (revokeError) {
-      throw revokeError;
-    }
-
-    // 2. Remove the tracked device session record.
     const { error: deleteError } = await supabase
-      .from("device_sessions")
+      .from("user_devices")
       .delete()
       .eq("id", deviceId)
       .eq("user_id", user.id);
