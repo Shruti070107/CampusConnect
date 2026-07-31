@@ -176,7 +176,7 @@ export function ImageCropUpload({
     const extension = compressedFile.name.split(".").pop()?.toLowerCase() ?? "webp";
     const filePath = `${user.id}/${crypto.randomUUID()}.${extension}`;
 
-    await uploadFileWithProgress(
+    const finalPath = await uploadFileWithProgress(
       supabaseUrl,
       session.access_token,
       bucket,
@@ -188,7 +188,7 @@ export function ImageCropUpload({
 
     const {
       data: { publicUrl },
-    } = supabase.storage.from(bucket).getPublicUrl(filePath);
+    } = supabase.storage.from(bucket).getPublicUrl(finalPath);
 
     return publicUrl;
   }

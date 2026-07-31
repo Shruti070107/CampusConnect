@@ -995,7 +995,7 @@ function AvatarUpload({ name, avatarTheme }: { name: string; avatarTheme?: Avata
       const filePath = `${user.id}/${crypto.randomUUID()}.${extension}`;
 
       const supabaseUrl = getSupabaseUrl();
-      await uploadFileWithProgress(
+      const finalPath = await uploadFileWithProgress(
         supabaseUrl,
         session.access_token,
         "avatars",
@@ -1006,7 +1006,7 @@ function AvatarUpload({ name, avatarTheme }: { name: string; avatarTheme?: Avata
 
       const {
         data: { publicUrl },
-      } = supabase.storage.from("avatars").getPublicUrl(filePath);
+      } = supabase.storage.from("avatars").getPublicUrl(finalPath);
 
       await handleUploaded(publicUrl);
       toast.success("Profile picture updated.");

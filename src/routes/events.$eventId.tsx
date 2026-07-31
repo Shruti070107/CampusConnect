@@ -1,6 +1,7 @@
 import { Link, useParams } from "react-router-dom";
 import { useQuery, useMutation, setQueryData } from "@/hooks/useReactQueryReplacement";
 import { createClient } from "@/lib/supabase/client";
+import { uploadFileWithProgress } from "@/lib/supabase/uploadFileWithProgress";
 import { useState, useEffect, lazy, Suspense, useMemo } from "react";
 import { TableOfContents } from "@/components/events/TableOfContents";
 import { NotFound } from "@/components/NotFound";
@@ -319,6 +320,16 @@ export default function EventDetailsPage() {
 
     setUploadingFiles((prev) => [...prev, ...newUploads]);
 
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    if (!session) {
+      toast.error("You must be logged in to upload photos.");
+      newUploads.forEach((upload) => URL.revokeObjectURL(upload.objectUrl));
+      return;
+    }
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+
     const uploadPromises = Array.from(files).map((file, index) => {
       const uploadItem = newUploads[index];
       const fileExt = file.name.split(".").pop();
@@ -326,45 +337,29 @@ export default function EventDetailsPage() {
       const filePath = `${eventId}/${fileName}`;
 
       return new Promise<void>((resolve) => {
-        const progressInterval = setInterval(() => {
-          setUploadingFiles((prev) =>
-            prev.map((item) => {
-              if (item.id === uploadItem.id && item.status === "uploading" && item.progress < 90) {
-                return { ...item, progress: item.progress + 10 };
-              }
-              return item;
-            }),
-          );
-        }, 200);
-
-        supabase.storage
-          .from("event-gallery")
-          .upload(filePath, file, {
-            cacheControl: "3600",
-            upsert: false,
+        uploadFileWithProgress(
+          supabaseUrl,
+          session.access_token,
+          "event-gallery",
+          filePath,
+          file,
+          (percent) => {
+            setUploadingFiles((prev) =>
+              prev.map((item) =>
+                item.id === uploadItem.id ? { ...item, progress: percent } : item,
+              ),
+            );
+          },
+        )
+          .then(() => {
+            setUploadingFiles((prev) =>
+              prev.map((item) =>
+                item.id === uploadItem.id ? { ...item, status: "success", progress: 100 } : item,
+              ),
+            );
           })
-          .then(({ error }) => {
-            clearInterval(progressInterval);
-            if (error) {
-              setUploadingFiles((prev) =>
-                prev.map((item) =>
-                  item.id === uploadItem.id
-                    ? { ...item, status: "error", progress: 0, errorMsg: error.message }
-                    : item,
-                ),
-              );
-              toast.error(`Failed to upload ${file.name}: ${error.message}`);
-            } else {
-              setUploadingFiles((prev) =>
-                prev.map((item) =>
-                  item.id === uploadItem.id ? { ...item, status: "success", progress: 100 } : item,
-                ),
-              );
-            }
-          })
-          .catch((err: unknown) => {
-            clearInterval(progressInterval);
-            const errMsg = err instanceof Error ? err.message : "Unknown error";
+          .catch((error: unknown) => {
+            const errMsg = error instanceof Error ? error.message : "Unknown error";
             setUploadingFiles((prev) =>
               prev.map((item) =>
                 item.id === uploadItem.id
@@ -372,7 +367,7 @@ export default function EventDetailsPage() {
                   : item,
               ),
             );
-            toast.error(`Error uploading ${file.name}`);
+            toast.error(`Failed to upload ${file.name}: ${errMsg}`);
           })
           .finally(() => {
             resolve();

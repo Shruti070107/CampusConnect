@@ -1,6 +1,7 @@
 import React, { useState, useRef } from "react";
 import { useQuery, useMutation } from "@/hooks/useReactQueryReplacement";
-import { createClient } from "@/lib/supabase/client";
+import { createClient, getSupabaseUrl } from "@/lib/supabase/client";
+import { uploadFileWithProgress } from "@/lib/supabase/uploadFileWithProgress";
 import { User } from "@supabase/supabase-js";
 import { toast } from "sonner";
 import { Camera, Loader2, Trash2 } from "lucide-react";
@@ -40,17 +41,25 @@ export function EventPhotoGallery({ eventId, user }: EventPhotoGalleryProps) {
       if (!user) throw new Error("Must be logged in to upload");
 
       const fileExt = file.name.split(".").pop();
-      const fileName = `${eventId}/${user.id}-${Date.now()}.${fileExt}`;
+      const filePath = `${eventId}/${user.id}-${Date.now()}.${fileExt}`;
 
-      const { error: uploadError } = await supabase.storage
-        .from("event-galleries")
-        .upload(fileName, file);
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session) throw new Error("Must be logged in to upload");
 
-      if (uploadError) throw uploadError;
+      const finalPath = await uploadFileWithProgress(
+        getSupabaseUrl(),
+        session.access_token,
+        "event-galleries",
+        filePath,
+        file,
+        () => {},
+      );
 
       const { data: publicUrlData } = supabase.storage
         .from("event-galleries")
-        .getPublicUrl(fileName);
+        .getPublicUrl(finalPath);
 
       const { error: dbError } = await supabase.from("event_photos").insert({
         event_id: eventId,

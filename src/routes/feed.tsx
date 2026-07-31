@@ -737,7 +737,7 @@ export default function Feed() {
         const filePath = `${user.id}/${crypto.randomUUID()}-${attachedImage.name}`;
         const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 
-        await uploadFileWithProgress(
+        const finalPath = await uploadFileWithProgress(
           supabaseUrl,
           session.access_token,
           "post-attachments",
@@ -748,7 +748,7 @@ export default function Feed() {
 
         const {
           data: { publicUrl },
-        } = supabase.storage.from("post-attachments").getPublicUrl(filePath);
+        } = supabase.storage.from("post-attachments").getPublicUrl(finalPath);
 
         imageUrl = publicUrl;
       }

@@ -98,7 +98,7 @@ export function BugReportModal({ open, onOpenChange }: BugReportModalProps) {
 
           const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 
-          await uploadFileWithProgress(
+          const finalPath = await uploadFileWithProgress(
             supabaseUrl,
             session.access_token,
             "bug-screenshots",
@@ -106,10 +106,11 @@ export function BugReportModal({ open, onOpenChange }: BugReportModalProps) {
             screenshot,
             setUploadProgress,
           );
+          uploadedPath = finalPath;
 
           const {
             data: { publicUrl },
-          } = supabase.storage.from("bug-screenshots").getPublicUrl(filePath);
+          } = supabase.storage.from("bug-screenshots").getPublicUrl(finalPath);
 
           screenshotUrl = publicUrl;
         }
