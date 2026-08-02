@@ -1,10 +1,11 @@
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, setQueryData } from "@/hooks/useReactQueryReplacement";
 import { createClient } from "@/lib/supabase/client";
-import { useState, useEffect, lazy, Suspense, useMemo } from "react";
+import { useState, useEffect, lazy, Suspense, useMemo, useCallback } from "react";
 import { LazyMotion, m } from "framer-motion";
 import { Helmet } from "react-helmet-async";
 import { uploadFileWithProgress } from "@/lib/supabase/uploadFileWithProgress";
+import { useCommand } from "@/components/CommandPaletteProvider";
 import { TableOfContents } from "@/components/events/TableOfContents";
 import { buildOpenGraphTags } from "@/lib/seo/eventMeta";
 import NotFound from "./NotFound";
@@ -233,6 +234,7 @@ function downloadCsv(csvContent: string, filename: string) {
 
 export default function EventDetailsPage() {
   const { eventId = "", lang = "en" } = useParams();
+  const navigate = useNavigate();
   const supabase = createClient();
   const [user, setUser] = useState<User | null>(null);
   const emailVerified = useEmailVerification();
@@ -265,7 +267,11 @@ export default function EventDetailsPage() {
       return;
     }
 
-    const clubObj = event.clubs ? (Array.isArray(event.clubs) ? event.clubs[0] : event.clubs) : null;
+    const clubObj = event.clubs
+      ? Array.isArray(event.clubs)
+        ? event.clubs[0]
+        : event.clubs
+      : null;
     const trail = [
       { label: "Home", path: `/${lang}` },
       { label: "Clubs", path: `/${lang}/clubs` },
@@ -312,7 +318,7 @@ export default function EventDetailsPage() {
         );
         refetch(); // Refetch to reset optimistic UI to server ground truth
       }
-    }
+    };
 
     navigator.serviceWorker.addEventListener("message", handleSwMessage);
     return () => {
@@ -840,7 +846,6 @@ export default function EventDetailsPage() {
       if (!variables.hasRsvpd && event?.banner_url && "caches" in window) {
         window.caches.open("supabase-images-cache").then((cache) => {
           cache.add(event.banner_url!).catch((err) => {
-            // eslint-disable-next-line no-console
             console.error("Failed to eagerly cache banner image", err);
           });
         });
@@ -978,6 +983,32 @@ export default function EventDetailsPage() {
   }, [eventId, event?.created_by, user?.id, supabase, refetch]);
 
   const isOrganizer = Boolean(user && event?.created_by === user.id);
+
+  // Delete the current event. Exposed as a contextual Command Palette action
+  // while this page is mounted (see useCommand below).
+  const handleDeleteEvent = useCallback(async () => {
+    if (!event) return;
+    const { error } = await supabase.from("events").delete().eq("id", event.id);
+    if (error) {
+      toast.error(error.message || "Failed to delete event.");
+      return;
+    }
+    toast.success("Event deleted successfully.");
+    navigate("/events");
+  }, [event, supabase, navigate]);
+
+  // Register an organizer-only contextual command. It is automatically removed
+  // from the global palette when this page unmounts.
+  useCommand(
+    isOrganizer && event
+      ? {
+          id: "event-delete",
+          title: "Delete Event",
+          keywords: ["delete", "remove", "trash"],
+          action: handleDeleteEvent,
+        }
+      : null,
+  );
 
   // Local state for optimistic updates during dragging
   const [columns, setColumns] = useState<{
@@ -1242,9 +1273,7 @@ export default function EventDetailsPage() {
   const attendeeCount =
     ((event as Record<string, unknown>).attendee_count as number) ?? rsvps.length;
   const maxAttendees = (event as Record<string, unknown>).max_attendees as
-    | number
-    | null
-    | undefined;
+    number | null | undefined;
   const isAtCapacity =
     maxAttendees !== null &&
     maxAttendees !== undefined &&
@@ -1273,8 +1302,6 @@ export default function EventDetailsPage() {
 
   return (
     <LazyMotion features={loadDomMax} strict={import.meta.env.DEV}>
-
-
       <Helmet>
         {/* OpenGraph (Facebook / Discord / iMessage) */}
         <meta property="og:type" content="event" />
@@ -1293,8 +1320,6 @@ export default function EventDetailsPage() {
         {og.ogImage && <meta name="twitter:image" content={og.ogImage} />}
       </Helmet>
       <SiteShell>
-
-
         {/* Hero Section */}
         <section className="relative w-full overflow-hidden border-b-2 border-black bg-peach/30">
           {event.banner_url ? (

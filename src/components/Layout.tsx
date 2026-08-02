@@ -12,6 +12,7 @@ import TopProgressBar from "@/components/TopProgressBar";
 import ShortcutsModal from "@/components/ShortcutsModal";
 import { SessionExpiryModal } from "@/components/SessionExpiryModal";
 import PWAInstallPrompt from "@/components/PWAInstallPrompt";
+import { CommandPalette } from "@/components/ui/command-palette";
 import { showAnnouncementToast } from "@/lib/announcements/sse";
 
 // Persistent banner shown while the browser has no network connection.
@@ -167,6 +168,7 @@ export default function Layout() {
         <ScrollToTop />
         <RadialFAB />
         {userId && <FloatingChat />}
+        <CommandPalette />
       </WebRTCProvider>
     </TooltipProvider>
   );
