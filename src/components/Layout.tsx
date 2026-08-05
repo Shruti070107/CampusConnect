@@ -10,6 +10,7 @@ import { FloatingChat } from "@/components/FloatingChat";
 import { createClient } from "@/lib/supabase/client";
 import TopProgressBar from "@/components/TopProgressBar";
 import ShortcutsModal from "@/components/ShortcutsModal";
+import { useAnnouncementStream } from "@/hooks/useAnnouncementStream";
 import { SessionExpiryModal } from "@/components/SessionExpiryModal";
 import PWAInstallPrompt from "@/components/PWAInstallPrompt";
 import { CommandPalette } from "@/components/ui/command-palette";
@@ -107,6 +108,9 @@ export default function Layout() {
       });
     }
   }, [location.pathname, userId]);
+
+  // Enable SSE announcement stream for authenticated users only
+  useAnnouncementStream(userId);
 
   // Keyboard shortcut (Shift + /)
   useEffect(() => {
