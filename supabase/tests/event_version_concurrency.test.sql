@@ -9,7 +9,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap;
 
 -- Plan the tests
-SELECT plan(4);
+SELECT plan(7);
 
 -- Test 1: Check events table exists
 SELECT has_table('public', 'events', 'Table events should exist');
@@ -38,15 +38,38 @@ VALUES (
     NOW()
 );
 
--- Try to update with stale version = 0 (should update 0 rows)
+-- First writer: guarded UPDATE from version 1 to 2 succeeds
 UPDATE public.events
-SET description = 'Stale Update', version = 2
-WHERE id = '90000000-0000-0000-0000-000000000004' AND version = 0;
+SET description = 'First Writer Description', version = 2
+WHERE id = '90000000-0000-0000-0000-000000000004' AND version = 1;
+
+SELECT is(
+    (SELECT version FROM public.events WHERE id = '90000000-0000-0000-0000-000000000004'),
+    2,
+    'Guarded update from version 1 to 2 succeeds'
+);
 
 SELECT is(
     (SELECT description FROM public.events WHERE id = '90000000-0000-0000-0000-000000000004'),
-    'Original Description',
-    'Update fails and does not modify description on version mismatch'
+    'First Writer Description',
+    'First writer description is persisted after successful guarded update'
+);
+
+-- Second writer with stale version 1: UPDATE affects 0 rows
+UPDATE public.events
+SET description = 'Stale Update', version = 3
+WHERE id = '90000000-0000-0000-0000-000000000004' AND version = 1;
+
+SELECT is(
+    (SELECT description FROM public.events WHERE id = '90000000-0000-0000-0000-000000000004'),
+    'First Writer Description',
+    'Stale update (version mismatch) affects 0 rows and does not modify description'
+);
+
+SELECT is(
+    (SELECT version FROM public.events WHERE id = '90000000-0000-0000-0000-000000000004'),
+    2,
+    'Version stays 2 after stale update is rejected'
 );
 
 SELECT * FROM finish();

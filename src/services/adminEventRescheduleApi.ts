@@ -51,6 +51,7 @@ export async function patchRescheduleEvent({
         start_date: newStartIso,
         end_date: newEndIso,
         event_date: newStartIso,
+        version: targetVersion,
       }),
     });
 

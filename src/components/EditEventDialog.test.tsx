@@ -141,6 +141,17 @@ describe("EditEventDialog Optimistic Concurrency Control", () => {
     fireEvent.click(screen.getByRole("button", { name: "Edit Event" }));
     fireEvent.click(await screen.findByRole("button", { name: "Save Changes" }));
 
+    // The save must write the next version (2) atomically in the update payload
+    await waitFor(() => {
+      expect(mockUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: "Hackathon 2024",
+          description: "Original description",
+          version: 2,
+        }),
+      );
+    });
+
     // Dialog closes on success
     await waitFor(() => {
       expect(screen.queryByRole("button", { name: "Save Changes" })).not.toBeInTheDocument();
