@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useVirtualizer } from "@tanstack/react-virtual";import { Navigate } from "react-router-dom";
+import { useVirtualizer } from "@tanstack/react-virtual";
+import { Navigate } from "react-router-dom";
 import { SiteShell } from "@/components/site/SiteShell";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
@@ -54,7 +55,8 @@ export default function AdminUsersPage() {
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
-const [limit] = useState(10000);  const [sortBy, setSortBy] = useState<string>("full_name");
+  const [limit] = useState(10000);
+  const [sortBy, setSortBy] = useState<string>("full_name");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
@@ -114,7 +116,7 @@ const [limit] = useState(10000);  const [sortBy, setSortBy] = useState<string>("
           totalProfiles
         }
       `;
-const variables = {
+      const variables = {
         limit,
         offset: 0,
         sortBy,
@@ -139,7 +141,7 @@ const variables = {
     } finally {
       setLoading(false);
     }
-}, [authChecked, role, limit, sortBy, sortOrder]);
+  }, [authChecked, role, limit, sortBy, sortOrder]);
   useEffect(() => {
     void loadProfiles();
   }, [loadProfiles]);
@@ -180,7 +182,7 @@ const variables = {
       setSortBy(field);
       setSortOrder("asc");
     }
-};
+  };
   // Bulk Suspend action
   const handleBulkSuspend = async () => {
     if (selectedIds.size === 0) return;
@@ -241,7 +243,7 @@ const variables = {
     );
   }
 
-const currentPageIds = profiles.map((p) => p.id);
+  const currentPageIds = profiles.map((p) => p.id);
   const allCurrentSelected =
     currentPageIds.length > 0 && currentPageIds.every((id) => selectedIds.has(id));
 
@@ -252,6 +254,23 @@ const currentPageIds = profiles.map((p) => p.id);
     estimateSize: () => 35, // estimated row height in px
     overscan: 5, // buffer rows above/below viewport
   });
+  const [isHeaderScrolled, setIsHeaderScrolled] = useState(false);
+  const headerScrollRaf = useRef<number | null>(null);
+  const handleContainerScroll = useCallback(() => {
+    if (headerScrollRaf.current !== null) return;
+    headerScrollRaf.current = requestAnimationFrame(() => {
+      headerScrollRaf.current = null;
+      const el = parentRef.current;
+      if (el) setIsHeaderScrolled(el.scrollTop > 0);
+    });
+  }, []);
+
+  useEffect(
+    () => () => {
+      if (headerScrollRaf.current !== null) cancelAnimationFrame(headerScrollRaf.current);
+    },
+    [],
+  );
   return (
     <SiteShell>
       <div className="bg-cream min-h-screen px-4 py-12 md:px-8 font-mono text-black">
@@ -295,10 +314,19 @@ const currentPageIds = profiles.map((p) => p.id);
                 <span className="text-sm font-bold uppercase">Loading profiles...</span>
               </div>
             ) : (
-<div ref={parentRef} className="overflow-auto" style={{ height: "600px" }}>
-                <table className="w-full text-left border-collapse">                  <thead>
-                    <tr className="border-b-4 border-black font-bold uppercase text-sm">
-                      <th className="py-4 px-3 w-12 text-center">
+              <div
+                ref={parentRef}
+                onScroll={handleContainerScroll}
+                className="overflow-auto"
+                style={{ height: "600px" }}
+              >
+                <table className="w-full text-left border-separate border-spacing-0">
+                  {" "}
+                  <thead>
+                    <tr className="font-bold uppercase text-sm">
+                      <th
+                        className={`sticky top-0 z-10 bg-white border-b-4 border-black py-4 px-3 w-12 text-center ${isHeaderScrolled ? "shadow-[0_4px_6px_-1px_rgba(0,0,0,0.25)]" : ""}`}
+                      >
                         <input
                           type="checkbox"
                           checked={allCurrentSelected}
@@ -308,7 +336,7 @@ const currentPageIds = profiles.map((p) => p.id);
                       </th>
                       <th
                         onClick={() => handleSort("full_name")}
-                        className="py-4 px-4 cursor-pointer hover:bg-cream/40 transition-colors"
+                        className={`sticky top-0 z-10 bg-white border-b-4 border-black py-4 px-4 cursor-pointer hover:bg-cream transition-colors ${isHeaderScrolled ? "shadow-[0_4px_6px_-1px_rgba(0,0,0,0.25)]" : ""}`}
                       >
                         <div className="flex items-center gap-2">
                           Name
@@ -322,7 +350,7 @@ const currentPageIds = profiles.map((p) => p.id);
                       </th>
                       <th
                         onClick={() => handleSort("handle")}
-                        className="py-4 px-4 cursor-pointer hover:bg-cream/40 transition-colors"
+                        className={`sticky top-0 z-10 bg-white border-b-4 border-black py-4 px-4 cursor-pointer hover:bg-cream transition-colors ${isHeaderScrolled ? "shadow-[0_4px_6px_-1px_rgba(0,0,0,0.25)]" : ""}`}
                       >
                         <div className="flex items-center gap-2">
                           Handle
@@ -336,7 +364,7 @@ const currentPageIds = profiles.map((p) => p.id);
                       </th>
                       <th
                         onClick={() => handleSort("role")}
-                        className="py-4 px-4 cursor-pointer hover:bg-cream/40 transition-colors"
+                        className={`sticky top-0 z-10 bg-white border-b-4 border-black py-4 px-4 cursor-pointer hover:bg-cream transition-colors ${isHeaderScrolled ? "shadow-[0_4px_6px_-1px_rgba(0,0,0,0.25)]" : ""}`}
                       >
                         <div className="flex items-center gap-2">
                           Role
@@ -350,7 +378,7 @@ const currentPageIds = profiles.map((p) => p.id);
                       </th>
                       <th
                         onClick={() => handleSort("is_banned")}
-                        className="py-4 px-4 cursor-pointer hover:bg-cream/40 transition-colors"
+                        className={`sticky top-0 z-10 bg-white border-b-4 border-black py-4 px-4 cursor-pointer hover:bg-cream transition-colors ${isHeaderScrolled ? "shadow-[0_4px_6px_-1px_rgba(0,0,0,0.25)]" : ""}`}
                       >
                         <div className="flex items-center gap-2">
                           Status
@@ -364,10 +392,11 @@ const currentPageIds = profiles.map((p) => p.id);
                       </th>
                     </tr>
                   </thead>
-<tbody
+                  <tbody
                     style={{ height: `${rowVirtualizer.getTotalSize()}px`, position: "relative" }}
                   >
-                    {profiles.length === 0 ? (                      <tr>
+                    {profiles.length === 0 ? (
+                      <tr>
                         <td
                           colSpan={5}
                           className="py-12 text-center text-gray-500 font-bold uppercase"
@@ -376,7 +405,7 @@ const currentPageIds = profiles.map((p) => p.id);
                         </td>
                       </tr>
                     ) : (
-rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                      rowVirtualizer.getVirtualItems().map((virtualRow) => {
                         const profile = profiles[virtualRow.index];
                         const isSelected = selectedIds.has(profile.id);
                         const isSuspended =
@@ -395,10 +424,12 @@ rowVirtualizer.getVirtualItems().map((virtualRow) => {
                               display: "table",
                               transform: `translateY(${virtualRow.start}px)`,
                             }}
-                            className={`border-b-2 border-black font-semibold text-sm hover:bg-cream/20 transition-colors ${
+                            className={`font-semibold text-sm hover:bg-cream/20 transition-colors ${
                               isSelected ? "bg-lime/5" : ""
                             }`}
-                          >                            <td className="py-4 px-3 text-center">
+                          >
+                            {" "}
+                            <td className="border-b-2 border-black py-4 px-3 text-center">
                               <input
                                 type="checkbox"
                                 checked={isSelected}
@@ -406,14 +437,18 @@ rowVirtualizer.getVirtualItems().map((virtualRow) => {
                                 className="h-4 w-4 cursor-pointer neu-border accent-lime"
                               />
                             </td>
-                            <td className="py-4 px-4">{profile.full_name || "N/A"}</td>
-                            <td className="py-4 px-4">@{profile.handle || "N/A"}</td>
-                            <td className="py-4 px-4 uppercase text-xs">
+                            <td className="border-b-2 border-black py-4 px-4">
+                              {profile.full_name || "N/A"}
+                            </td>
+                            <td className="border-b-2 border-black py-4 px-4">
+                              @{profile.handle || "N/A"}
+                            </td>
+                            <td className="border-b-2 border-black py-4 px-4 uppercase text-xs">
                               <span className="bg-gray-200 px-2 py-1 border border-black rounded-none">
                                 {profile.role || "member"}
                               </span>
                             </td>
-                            <td className="py-4 px-4 text-xs font-bold uppercase">
+                            <td className="border-b-2 border-black py-4 px-4 text-xs font-bold uppercase">
                               {isSuspended ? (
                                 <span className="bg-peach text-black border border-black px-2 py-1 inline-flex items-center gap-1.5 rounded-none">
                                   <XCircle className="h-3.5 w-3.5" />
@@ -434,11 +469,11 @@ rowVirtualizer.getVirtualItems().map((virtualRow) => {
                 </table>
               </div>
             )}
-
-{/* Row count summary — pagination replaced by virtual scrolling */}
+            {/* Row count summary — pagination replaced by virtual scrolling */}
             <div className="mt-6 flex items-center border-t-2 border-black pt-6 text-sm font-bold">
               <div>Showing all {total} users</div>
-            </div>          </div>
+            </div>{" "}
+          </div>
         </div>
       </div>
       <BulkUserImportModal
