@@ -17,6 +17,7 @@ import { formatEventDateRange } from "@/lib/utils";
 import { downloadIcs, getGoogleCalendarUrl } from "@/lib/calendarUtils";
 import { EventCapacityGauge } from "@/components/events/EventCapacityGauge";
 import { formatDateLong } from "@/lib/dateFormatter";
+import { getRsvpIdempotencyKey, clearRsvpIdempotencyKey } from "@/lib/rsvpIdempotency";
 import { toast } from "sonner";
 import { ShareMenu } from "@/components/ui/ShareMenu";
 import {
@@ -575,6 +576,8 @@ export default function EventDetailsPage() {
         return;
       }
 
+      const idempotencyKey = getRsvpIdempotencyKey(eventId);
+
       const {
         data: { session },
       } = await supabase.auth.getSession();
@@ -583,10 +586,12 @@ export default function EventDetailsPage() {
         body: { eventId, hasRsvpd, captchaToken },
         headers: {
           Authorization: `Bearer ${session?.access_token}`,
+          "Idempotency-Key": idempotencyKey,
         },
       });
 
       if (error) throw error;
+      clearRsvpIdempotencyKey(eventId);
     },
     onMutate: async ({ hasRsvpd }) => {
       // Snapshot the previous value

@@ -10,6 +10,7 @@ import { LazyMotion, m } from "framer-motion";
 import { Helmet } from "react-helmet-async";
 import { uploadFileWithProgress } from "@/lib/supabase/uploadFileWithProgress";
 import { useCommand } from "@/components/CommandPaletteProvider";
+import { getRsvpIdempotencyKey, clearRsvpIdempotencyKey } from "@/lib/rsvpIdempotency";
 import { TableOfContents } from "@/components/events/TableOfContents";
 import { buildOpenGraphTags } from "@/lib/seo/eventMeta";
 import { NotFound } from "@/components/NotFound";
@@ -777,6 +778,8 @@ export default function EventDetailsPage() {
         return;
       }
 
+      const idempotencyKey = getRsvpIdempotencyKey(eventId);
+
       const {
         data: { session },
       } = await supabase.auth.getSession();
@@ -785,10 +788,12 @@ export default function EventDetailsPage() {
         body: { eventId, hasRsvpd, captchaToken },
         headers: {
           Authorization: `Bearer ${session?.access_token}`,
+          "Idempotency-Key": idempotencyKey,
         },
       });
 
       if (error) throw error;
+      clearRsvpIdempotencyKey(eventId);
     },
     onMutate: async ({ hasRsvpd }) => {
       // Snapshot the previous value
@@ -856,7 +861,6 @@ export default function EventDetailsPage() {
       if (!variables.hasRsvpd && event?.banner_url && "caches" in window) {
         window.caches.open("supabase-images-cache").then((cache) => {
           cache.add((event as any).banner_url!).catch((err) => {
-            // eslint-disable-next-line no-console
             console.error("Failed to eagerly cache banner image", err);
           });
         });
