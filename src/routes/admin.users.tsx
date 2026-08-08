@@ -23,19 +23,13 @@ interface Profile {
   is_banned: boolean;
 }
 
-interface GraphQLResponse {
-  profiles: Profile[];
-  totalProfiles: number;
-}
-
-interface MutationResponse {
-  suspendUsers: {
-    id: string;
-    is_banned: boolean;
-  }[];
-}
-
 import { fetchGraphQL, GraphQLPartialError } from "@/lib/graphql-client";
+import {
+  GetProfilesQuery,
+  GetProfilesQueryVariables,
+  SuspendUsersMutation,
+  SuspendUsersMutationVariables,
+} from "@/generated/graphql";
 
 async function graphqlRequest<T>(
   query: string,
@@ -122,15 +116,15 @@ export default function AdminUsersPage() {
         sortBy,
         sortOrder,
       };
-      const data = await graphqlRequest<GraphQLResponse>(query, variables);
+      const data = await graphqlRequest<GetProfilesQuery>(query, variables);
       setProfiles(data.profiles);
       setTotal(data.totalProfiles);
     } catch (err: unknown) {
       console.error(err);
       // Partial failure: render what we got, warn the user
       if (err instanceof GraphQLPartialError) {
-        const partial = err.data as GraphQLResponse;
-        if (partial?.profiles) setProfiles(partial.profiles);
+        const partial = err.data as GetProfilesQuery;
+        if (partial?.profiles) setProfiles(partial.profiles as Profile[]);
         if (partial?.totalProfiles != null) setTotal(partial.totalProfiles);
         toast.warning("Some user data failed to load. Showing partial results.");
       } else {
@@ -205,7 +199,8 @@ export default function AdminUsersPage() {
           }
         }
       `;
-      await graphqlRequest<MutationResponse>(mutation, { ids: idsToSuspend });
+      const variables: SuspendUsersMutationVariables = { ids: idsToSuspend };
+      await graphqlRequest<SuspendUsersMutation>(mutation, variables);
       toast.success(`Successfully suspended ${idsToSuspend.length} users.`);
       void loadProfiles();
     } catch (err: unknown) {
