@@ -265,7 +265,7 @@ export function CarpoolSection({ eventId, user }: CarpoolSectionProps) {
             />
           ))}
         </div>
-      ) : activeCarpools.length === 0 ? (
+      ) : (carpools ?? []).length === 0 ? (
         <p className="border-2 border-dashed border-black/20 p-4 text-sm font-mono text-slate-500">
           No rides offered yet{user ? " — be the first to offer a ride!" : "."}
         </p>
