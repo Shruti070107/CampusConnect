@@ -4,11 +4,23 @@ import tailwindcss from "@tailwindcss/vite";
 import { VitePWA } from "vite-plugin-pwa";
 import path from "path";
 import { fileURLToPath } from "url";
-import { federation } from "@module-federation/vite";
+import { copyLibFiles } from "@builder.io/partytown/utils";
+import { partytownSnippet } from "@builder.io/partytown/integration";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+function partytownPlugin() {
+  return {
+    name: "partytown-plugin",
+    async buildStart() {
+      await copyLibFiles(path.resolve(__dirname, "public/~partytown"));
+    },
+  };
+}
+
+const CSP_VALUE =
+  "default-src 'self'; script-src 'self' https://js.stripe.com https://www.google-analytics.com https://www.googletagmanager.com https://connect.facebook.net https://*.hotjar.com https://script.hotjar.com https://static.hotjar.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https: https://images.unsplash.com https://s3.amazonaws.com https://www.facebook.com; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.supabase.co https://s3.amazonaws.com https://images.unsplash.com https://www.google-analytics.com https://www.googletagmanager.com https://connect.facebook.net https://*.hotjar.com https://script.hotjar.com https://vars.hotjar.com wss://*.hotjar.com; frame-src 'self' https://js.stripe.com https://vars.hotjar.com; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; frame-ancestors 'none';";
 
 /**
  * Vite configuration for CampusConnect
@@ -20,16 +32,14 @@ export default defineConfig({
     port: 3000,
     host: true,
     headers: {
-      "Content-Security-Policy":
-        "default-src 'self'; script-src 'self' 'unsafe-inline' https://js.stripe.com https://www.google-analytics.com https://www.googletagmanager.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.supabase.co https://s3.amazonaws.com https://images.unsplash.com https://www.google-analytics.com; frame-src 'self' https://js.stripe.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none';",
+      "Content-Security-Policy": CSP_VALUE,
       "Cross-Origin-Opener-Policy": "same-origin",
       "Cross-Origin-Embedder-Policy": "require-corp",
     },
   },
   preview: {
     headers: {
-      "Content-Security-Policy":
-        "default-src 'self'; script-src 'self' 'unsafe-inline' https://js.stripe.com https://www.google-analytics.com https://www.googletagmanager.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.supabase.co https://s3.amazonaws.com https://images.unsplash.com https://www.google-analytics.com; frame-src 'self' https://js.stripe.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none';",
+      "Content-Security-Policy": CSP_VALUE,
       "Cross-Origin-Opener-Policy": "same-origin",
       "Cross-Origin-Embedder-Policy": "require-corp",
       "Strict-Transport-Security": "max-age=63072000; includeSubDomains; preload",
@@ -44,6 +54,7 @@ export default defineConfig({
     // lucideImportOptimizer(),
     viteReact(),
     tailwindcss(),
+    partytownPlugin(),
     ...(process.env.STORYBOOK === "true"
       ? []
       : [
@@ -87,16 +98,31 @@ export default defineConfig({
                 },
                 {
                   urlPattern: ({ url, request }) =>
-                    request.method === "GET" && url.pathname.startsWith("/api/"),
+                    request.method === "GET" &&
+                    (url.hostname.includes("supabase.co") || url.pathname.includes("/rest/v1/") || url.pathname.includes("/functions/v1/")),
                   handler: "StaleWhileRevalidate",
                   options: {
-                    cacheName: "api-get-cache",
+                    cacheName: "supabase-get-cache",
                     expiration: {
                       maxEntries: 100,
                       maxAgeSeconds: 24 * 60 * 60, // 24 Hours
                     },
                     cacheableResponse: {
                       statuses: [0, 200],
+                    },
+                  },
+                },
+                {
+                  urlPattern: ({ url, request }) =>
+                    request.method === "POST" &&
+                    (url.hostname.includes("supabase.co") || url.pathname.includes("/rest/v1/") || url.pathname.includes("/functions/v1/")),
+                  handler: "NetworkOnly",
+                  options: {
+                    backgroundSync: {
+                      name: "supabase-post-queue",
+                      options: {
+                        maxRetentionTime: 24 * 60, // 24 hours
+                      },
                     },
                   },
                 },
