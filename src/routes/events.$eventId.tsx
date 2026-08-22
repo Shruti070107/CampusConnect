@@ -1996,6 +1996,12 @@ clubs (name, slug, logo_url, primary_color, secondary_color),          event_met
                   >
                     Layout Builder
                   </Link>
+                  <Link
+                    to={`/events/${eventId}/floorplan`}
+                    className="neu-border neu-press flex h-12 items-center justify-center bg-white px-5 font-mono text-sm font-bold uppercase tracking-wider text-black transition-all duration-300 hover:scale-105 active:scale-95"
+                  >
+                    Floor Plan
+                  </Link>
                 </>
               )}
 
