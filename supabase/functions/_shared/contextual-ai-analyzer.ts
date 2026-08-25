@@ -60,6 +60,29 @@ const CONTEXTUAL_KEYWORDS = [
   "hang",
   "hanged",
   "torture",
+  "rape",
+  "raped",
+  "suicide",
+  "explode",
+  "skin",
+  "rip",
+  "wreck",
+  "annihilate",
+  "obliterate",
+  "punish",
+  "eliminate",
+  "suffer",
+  "bleed",
+  "choke",
+  "punch",
+  "slap",
+  "smash",
+  "strangle",
+  "assassinate",
+  "lynch",
+  "burn",
+  "arson",
+  "poison",
 ];
 
 /**
@@ -90,36 +113,44 @@ export async function analyzeContextually(
   openaiApiKey: string,
   flagReason: string = "violence",
 ): Promise<ContextualAnalysisResult> {
-  const systemPrompt = `You are a content moderation assistant that analyzes flagged messages for literal threats vs harmless slang/exaggeration.
+  const systemPrompt = `You are a content moderation AI that determines whether flagged text is a LITERAL THREAT of violence or harmless SLANG/EXAGGERATION.
 
-Your task: Determine if the following text contains a LITERAL THREAT of violence, or if it is harmless slang/exaggeration commonly used in casual conversation.
+Your ONLY job: Answer YES (Threat) or NO (Slang) for whether the text is a real, actionable threat.
 
-Examples of SLANG (not threats):
+SLANG / NOT THREATS (answer NO):
 - "This exam killed me" (exaggeration about difficulty)
-- "I'm dead 💀" (gen-z slang for laughing)
-- "That concert was murder" (praise for an amazing performance)
-- "Let's destroy them in the game" (competitive gaming)
-- "I'll beat you at this" (friendly competition)
-- "The test was a massacre" (exaggeration)
-- "I'm going to die of laughter" (hyperbole)
-- "She slayed that performance" (compliment)
-- "This food is to die for" (idiom)
-- "The gym destroyed me today" (exaggeration about workout)
+- "I'm dead" / "I'm dead" (gen-z slang for laughing hard)
+- "That concert was murder" / "that set was killer" (praise)
+- "Let's destroy them in the game" / "we're gonna crush it" (competitive/gaming)
+- "I'll beat you at this" / "beat that level" (friendly competition)
+- "The test was a massacre" / "this homework is brutal" (exaggeration)
+- "I'm going to die of laughter" / "dying inside" (hyperbole)
+- "She slayed that performance" / "he killed it" (compliment)
+- "This food is to die for" / "the gym killed me" (idiom/exaggeration)
+- "I'm so hungry I could eat a horse" (idiom)
+- "That was savage" / "total destruction on the court" (compliment/sports)
+- "The traffic is killing me" / "this heat is murder" (complaint)
+- "RIP my inbox" / "RIP my GPA" (humorous exaggeration)
+- "I'm gonna bomb this exam" (slang for doing poorly, NOT a literal bomb)
+- "She's a beast at math" / "he's a killer player" (compliment)
 
-Examples of THREATS (not slang):
-- "I'm going to kill you tonight"
-- "You're dead, I know where you live"
-- "I'll shoot you on sight"
-- "I'm going to bomb the building"
-- "You deserve to be murdered"
+REAL THREATS (answer YES):
+- "I'm going to kill you tonight" (direct, personal, actionable)
+- "You're dead, I know where you live" (specific threat with intent)
+- "I'll shoot you on sight" (direct weapon threat)
+- "I'm going to bomb the building" (specific target, actionable)
+- "You deserve to be murdered" (incitement)
+- "I'll find you and hurt you" (stalking + violence)
+- "Watch your back, I'm coming for you" (direct threat)
 
-Rules:
-- Consider the overall context, tone, and common usage patterns
-- Slang, idioms, hyperbole, gaming language, and pop culture references are NOT threats
-- Specific, directed, personal threats WITH actionable intent ARE threats
-- Ambiguous cases should be classified as NOT a threat (allow the message)
+RULES:
+1. Consider context, tone, and common usage - NOT just individual words
+2. Slang, idioms, hyperbole, gaming language, sports, and pop culture are NOT threats
+3. Specific, directed, personal threats WITH actionable intent ARE threats
+4. When in doubt, classify as NOT a threat (allow the message)
+5. Vague/ambiguous = NOT a threat (err on the side of allowing)
 
-Respond with EXACTLY one line in this format:
+Respond with EXACTLY this format (no other text):
 VERDICT: YES or NO
 CONFIDENCE: 0.0 to 1.0
 REASON: <one sentence explaining your verdict>`;
