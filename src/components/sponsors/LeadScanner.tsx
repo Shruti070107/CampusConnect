@@ -2,8 +2,9 @@ import React, { useState, useRef, useEffect, useCallback } from "react";
 import { Html5Qrcode } from "html5-qrcode";
 import { createClient } from "@/lib/supabase/client";
 import { playSuccessBeep } from "@/lib/audio/beep";
+import { triggerReversePayload } from "@/lib/recruiterVCard";
 import { Button } from "@/components/ui/button";
-import { Loader2 } from "lucide-react";
+import { Loader2, Send } from "lucide-react";
 
 interface LeadScannerProps {
   eventId: string;
@@ -19,8 +20,13 @@ export const LeadScanner: React.FC<LeadScannerProps> = ({ eventId, sponsorId, on
     success: boolean;
     message: string;
     attendeeName?: string;
+    studentUserId?: string;
   } | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [reversePayloadStatus, setReversePayloadStatus] = useState<{
+    sent: boolean;
+    message: string;
+  } | null>(null);
   const [notes, setNotes] = useState("");
 
   const scannerRef = useRef<Html5Qrcode | null>(null);
@@ -86,6 +92,17 @@ export const LeadScanner: React.FC<LeadScannerProps> = ({ eventId, sponsorId, on
             if (error) throw error;
 
             setScanResult(data);
+
+            // Trigger reverse payload: send recruiter business card to student
+            if (data.success && data.student_user_id) {
+              setReversePayloadStatus(null);
+              const reverseResult = await triggerReversePayload(data.student_user_id, eventId);
+              setReversePayloadStatus({
+                sent: reverseResult.success,
+                message: reverseResult.message,
+              });
+            }
+
             if (data.success && onLeadCaptured) {
               onLeadCaptured(data);
             }
@@ -133,6 +150,7 @@ export const LeadScanner: React.FC<LeadScannerProps> = ({ eventId, sponsorId, on
   const resetScanner = useCallback(async () => {
     setScanResult(null);
     setNotes("");
+    setReversePayloadStatus(null);
     if (scannerRef.current) {
       await scannerRef.current.resume();
     }
@@ -205,6 +223,16 @@ export const LeadScanner: React.FC<LeadScannerProps> = ({ eventId, sponsorId, on
             <p className="text-sm text-gray-600">{scanResult.message}</p>
             {scanResult.attendeeName && (
               <p className="font-medium mt-2">Attendee: {scanResult.attendeeName}</p>
+            )}
+            {reversePayloadStatus && (
+              <div
+                className={`mt-3 p-2 rounded-md text-xs ${reversePayloadStatus.sent ? "bg-blue-50 text-blue-800" : "bg-yellow-50 text-yellow-800"}`}
+              >
+                <Send className="w-3 h-3 inline mr-1" />
+                {reversePayloadStatus.sent
+                  ? "Digital business card sent to student!"
+                  : reversePayloadStatus.message}
+              </div>
             )}
             <Button
               onClick={resetScanner}
