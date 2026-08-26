@@ -73,16 +73,19 @@ serve(async (req) => {
 
     // ================================================================
     // Issue #4419: Contextual AI Analysis for Violence Flags
-    // When the OpenAI moderation flags content that also contains
-    // violence keywords, route through contextual AI to check if it's
-    // slang/exaggeration before shadowbanning.
+    // When ANY flagged message contains violence-related keywords,
+    // route through contextual AI to check if it's slang/exaggeration
+    // before shadowbanning. Previously this was gated on isViolence
+    // which required OpenAI's violence score >0.8, causing messages
+    // like "This exam killed me" (flagged as harassment, not violence)
+    // to be banned without contextual review.
     // ================================================================
-    if (isFlagged && isViolence) {
+    if (isFlagged && requiresContextualAnalysis(text)) {
       const openaiApiKey = Deno.env.get("OPENAI_API_KEY");
-      if (openaiApiKey && requiresContextualAnalysis(text)) {
+      if (openaiApiKey) {
         console.log(`[ContextualAI] Routing Q&A message ${messageId} for contextual analysis`);
 
-        const flagReason = isViolence ? "violence" : "harassment";
+        const flagReason = isViolence ? "violence" : "harassment/language";
         const contextResult = await analyzeContextually(text, openaiApiKey, flagReason);
 
         await logContextualAnalysis(supabaseAdmin, {
